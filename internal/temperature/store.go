@@ -1,10 +1,11 @@
 // Package temperature implements a simplified in-memory abuse scoring system.
 //
-// Four signals are weighted into a 0–100 score:
-//   - IP request rate (40%)
-//   - /24 subnet rate (25%)
-//   - Token burn rate per site key (25%)
+// Five signals are weighted into a 0–100 score:
+//   - IP request rate (30%)
+//   - /24 subnet rate (20%)
+//   - Token burn rate per site key (20%)
 //   - Probe consistency (10%)
+//   - IP reputation — cloud/Tor origin detection (20%)
 //
 // The score maps to a temperature bucket (0–3) which drives challenge difficulty.
 package temperature
@@ -24,6 +25,7 @@ type Store struct {
 	subnetReqs   map[string][]time.Time
 	tokenBurns   map[string]int
 	probeHistory map[string][]bool // IP → [pass, pass, fail, ...]
+	reputation   *Reputation
 	stopCleanup  chan struct{}
 }
 
@@ -34,6 +36,7 @@ func NewStore() *Store {
 		subnetReqs:   make(map[string][]time.Time),
 		tokenBurns:   make(map[string]int),
 		probeHistory: make(map[string][]bool),
+		reputation:   NewReputation(),
 		stopCleanup:  make(chan struct{}),
 	}
 	go s.cleanupLoop()
@@ -90,14 +93,17 @@ func (s *Store) Score(ip, siteKey string) (score int, bucket uint8) {
 	// Probe consistency: fraction of failed probes
 	probeScore := probeFailRate(s.probeHistory[ip])
 
+	// IP reputation: 0 = residential, 80 = cloud, 100 = Tor
+	repScore := s.reputation.Score(ip)
+
 	// Convert each signal to 0–100 (capped)
 	ipScore := min100(ipReqs * 5)           // 20 req/min → score 100
 	subnetScore := min100(subnetReqs * 2)   // 50 req/min from subnet → score 100
 	burnScore := min100(burns / 10)         // 1000 tokens burned → score 100
 	probeSignal := int(probeScore * 100)
 
-	// Weighted sum: IP 40%, subnet 25%, burns 25%, probes 10%
-	weighted := (ipScore*40 + subnetScore*25 + burnScore*25 + probeSignal*10) / 100
+	// Weighted sum: IP rate 30%, subnet 20%, burns 20%, probes 10%, reputation 20%
+	weighted := (ipScore*30 + subnetScore*20 + burnScore*20 + probeSignal*10 + repScore*20) / 100
 	score = min100(weighted)
 	bucket = scoreToBucket(score)
 	return score, bucket
