@@ -223,17 +223,91 @@
         const el = document.createElement('div');
         el.style.cssText = 'position:absolute;transform:rotate(45deg) scale(1.5);width:100px;height:100px;';
         document.body.appendChild(el);
-        const rect = el.getBoundingClientRect(); // forces layout
+        const rect = el.getBoundingClientRect();
         void rect.width;
         document.body.removeChild(el);
         return String((performance.now() - start).toFixed(3));
       }
       case 'memory_allocation': {
         const start = performance.now();
-        const buf = new ArrayBuffer(1024 * 1024); // 1 MB
+        const buf = new ArrayBuffer(1024 * 1024);
         const view = new Uint8Array(buf);
         for (let i = 0; i < view.length; i += 1024) view[i] = i & 0xFF;
         return String((performance.now() - start).toFixed(3));
+      }
+      case 'canvas_timing': {
+        const start = performance.now();
+        const canvas = new OffscreenCanvas(64, 64);
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#f0a';
+        ctx.fillRect(0, 0, 64, 64);
+        ctx.font = '14px serif';
+        ctx.fillText('probe', 10, 32);
+        canvas.convertToBlob();
+        return String((performance.now() - start).toFixed(3));
+      }
+      case 'audio_latency': {
+        try {
+          const ac = new AudioContext();
+          const latency = ac.baseLatency;
+          ac.close();
+          return String(latency >= 0 ? latency * 1000 : -1);
+        } catch (e) {
+          return '-1';
+        }
+      }
+      case 'font_measurement': {
+        const start = performance.now();
+        const span = document.createElement('span');
+        span.style.cssText = 'position:absolute;visibility:hidden;font-size:72px;';
+        span.textContent = 'Wmgj|';
+        document.body.appendChild(span);
+        span.style.fontFamily = 'monospace';
+        const w1 = span.offsetWidth;
+        span.style.fontFamily = 'serif';
+        const w2 = span.offsetWidth;
+        document.body.removeChild(span);
+        void (w1 + w2);
+        return String((performance.now() - start).toFixed(3));
+      }
+      case 'animation_frame': {
+        const t0 = await new Promise(r => requestAnimationFrame(r));
+        const t1 = await new Promise(r => requestAnimationFrame(r));
+        const t2 = await new Promise(r => requestAnimationFrame(r));
+        return String((t2 - t0).toFixed(3));
+      }
+      case 'intersection_observer': {
+        const el = document.createElement('div');
+        el.style.cssText = 'position:absolute;width:1px;height:1px;top:0;left:0;';
+        document.body.appendChild(el);
+        const start = performance.now();
+        await new Promise(resolve => {
+          const obs = new IntersectionObserver(entries => {
+            obs.disconnect();
+            resolve();
+          });
+          obs.observe(el);
+        });
+        document.body.removeChild(el);
+        return String((performance.now() - start).toFixed(3));
+      }
+      case 'webgl_query': {
+        const start = performance.now();
+        try {
+          const c = document.createElement('canvas');
+          const gl = c.getContext('webgl');
+          if (gl) {
+            const ext = gl.getExtension('WEBGL_debug_renderer_info');
+            if (ext) void gl.getParameter(ext.UNMASKED_RENDERER_WEBGL);
+          }
+        } catch (e) { /* no WebGL */ }
+        return String((performance.now() - start).toFixed(3));
+      }
+      case 'performance_heap': {
+        if (performance.memory && performance.memory.usedJSHeapSize) {
+          return String(performance.memory.usedJSHeapSize);
+        }
+        return '-1';
       }
       default:
         return '0';
