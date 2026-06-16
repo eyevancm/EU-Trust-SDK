@@ -163,12 +163,15 @@
   // --- Argon2 via WASM (hash-wasm) ---
   let argon2Module = null;
 
+  const ARGON2_SRI = 'sha384-tP0Wy54CKmng7i9EoTlPySD0hBx6Octj0VS6MfwlnUu111MPa+JLm0CCbep6XJ1W';
+
   async function loadArgon2() {
     if (argon2Module) return argon2Module;
-    // Load hash-wasm from CDN (lazy, only when Argon2 challenge is present)
     await new Promise((resolve, reject) => {
       const script = document.createElement('script');
-      script.src = 'https://cdn.jsdelivr.net/npm/hash-wasm@4/dist/argon2.umd.min.js';
+      script.src = 'vendor/argon2.umd.min.js';
+      script.integrity = ARGON2_SRI;
+      script.crossOrigin = 'anonymous';
       script.onload = resolve;
       script.onerror = reject;
       document.head.appendChild(script);
