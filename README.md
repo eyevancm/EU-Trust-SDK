@@ -4,13 +4,14 @@ Web attestation widget (reCAPTCHA replacement) using Privacy Pass with public me
 
 ## Current State
 
-**All 26 tests pass. Full PoC implementation complete.**
+**All 31 tests pass. Full PoC implementation complete.**
 
 | Package | Tests | Status |
 |---------|-------|--------|
 | `internal/rsapbssa` | 8 | ✅ RFC test vector round-trips pass (exact byte match) |
 | `internal/challenge` | 5 | ✅ Parameter derivation + range validation |
 | `internal/environment` | 5 | ✅ Probe pool integrity + validation logic |
+| `internal/temperature` | 5 | ✅ IP reputation (cloud/Tor detection) |
 | `pkg/api` | 4 | ✅ Metadata encode/decode |
 | `cmd/server` | 4 | ✅ Full round-trip, replay protection, error cases |
 
@@ -18,7 +19,7 @@ Web attestation widget (reCAPTCHA replacement) using Privacy Pass with public me
 
 - `internal/rsapbssa/` — Full RSAPBSSA implementation: DerivePublicKey, DeriveKeyPair, Blind, BlindSign, Finalize, Verify, GenerateKey (safe primes). All 3 RFC test vectors pass with exact byte matching.
 - `internal/challenge/` — Composite challenge: HashCash (CPU), Argon2id (memory), environment probes. Parameter derivation from HMAC-SHA256 seeds.
-- `internal/temperature/` — In-memory abuse scoring (IP rate, subnet rate, token burn, probe consistency)
+- `internal/temperature/` — In-memory abuse scoring with 5 weighted signals: IP rate (30%), subnet rate (20%), token burn (20%), probe consistency (10%), IP reputation (20%). Reputation module classifies IPs against static CIDR lists from AWS, GCP, Azure, and DigitalOcean official published ranges
 - `internal/environment/` — Server-side probe validation with 10-probe pool: webcrypto_timing, dom_computation, memory_allocation, canvas_timing, audio_latency, font_measurement, animation_frame, intersection_observer, webgl_query, performance_heap
 - `pkg/api/` — Data contract types (challenge payloads, siteverify, trust metadata)
 - `cmd/server/` — HTTP server: `/challenge`, `/verify`, `/siteverify`
@@ -55,6 +56,9 @@ go test ./...
 # Start the server (dev key pair, port 8080)
 go run ./cmd/server/
 
+# Start with HTTPS (required for cross-device LAN testing — Web Crypto needs secure context)
+go run ./cmd/server/ -tls-cert dev-cert/cert.pem -tls-key dev-cert/key.pem
+
 # Open the browser test page
 open http://localhost:8080/widget/widget.html
 ```
@@ -69,6 +73,7 @@ See `../Documentation/TESTING.md` for full testing guide including manual API te
 - **Argon2id over pure HashCash**: GPU/ASIC resistance via memory-hardness; WASM required on client (pure JS is 10-50x slower)
 - **Vendored WASM with SRI**: Argon2 WASM bundle served locally with SHA-384 integrity check — no runtime CDN dependency
 - **Metadata bound at challenge time**: predicted metadata is stored when the challenge is issued and reused at signing time — no recomputation, no timing-dependent mismatches
+- **IP reputation as temperature signal**: CIDR prefix-set lookup against AWS, GCP, Azure, DigitalOcean, and Tor exit node ranges — bots overwhelmingly originate from cloud IPs. Scored at 20% weight in the temperature system (cloud = 80/100, Tor = 100/100). Source data fetched from each provider's official published IP range API
 - **Go backend**: strong crypto stdlib, good for token verification throughput
 
 ## PoC Limitations
@@ -78,7 +83,7 @@ Production features deferred from this PoC phase:
 - Persistent key storage (uses RFC test vector key pair)
 - Minimum anonymity set enforcement (k=10 threshold per IETF draft §7.3)
 - JA4 TLS fingerprinting in temperature system
-- IP reputation lookup (datacenter/Tor/VPN detection)
+- Dynamic IP reputation updates (currently static CIDR snapshots from 2026-06-16)
 - Per-site-key policy enforcement
 - Domain verification for site keys
 - Binary transparency log for WASM
