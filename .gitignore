@@ -3,6 +3,7 @@
 *.dll
 *.so
 *.dylib
+/server
 
 # Test binary
 *.test
@@ -22,3 +23,6 @@ go.work.sum
 # OS
 .DS_Store
 Thumbs.db
+
+# Dev TLS certs
+dev-cert/

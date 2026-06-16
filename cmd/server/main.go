@@ -14,6 +14,7 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"log"
 	"math/big"
@@ -348,6 +349,10 @@ func hexToInt(s string) (*big.Int, error) {
 }
 
 func main() {
+	tlsCert := flag.String("tls-cert", "", "TLS certificate file (enables HTTPS)")
+	tlsKey := flag.String("tls-key", "", "TLS private key file")
+	flag.Parse()
+
 	kp := loadDevKey()
 	srv := newServer(kp)
 
@@ -358,12 +363,22 @@ func main() {
 
 	mux.Handle("/widget/", http.StripPrefix("/widget/", http.FileServer(http.Dir("widget"))))
 
+	scheme := "http"
+	if *tlsCert != "" {
+		scheme = "https"
+	}
+
 	log.Println("Sovereign Trust SDK PoC server listening on :8080")
 	log.Println("  GET  /challenge?sitekey=sk_test_sovereign")
 	log.Println("  POST /verify")
 	log.Println("  POST /siteverify")
-	log.Println("  http://localhost:8080/widget/widget.html (test page)")
-	log.Fatal(http.ListenAndServe(":8080", corsMiddleware(mux)))
+	log.Printf("  %s://localhost:8080/widget/widget.html (test page)", scheme)
+
+	if *tlsCert != "" {
+		log.Fatal(http.ListenAndServeTLS(":8080", *tlsCert, *tlsKey, corsMiddleware(mux)))
+	} else {
+		log.Fatal(http.ListenAndServe(":8080", corsMiddleware(mux)))
+	}
 }
 
 func corsMiddleware(next http.Handler) http.Handler {

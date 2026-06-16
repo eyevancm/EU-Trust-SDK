@@ -164,10 +164,10 @@ type SiteVerifyResponse struct {
 	Hostname string `json:"hostname,omitempty"`
 
 	// ChallengeClass indicates what the client proved (0-3).
-	ChallengeClass uint8 `json:"challenge_class,omitempty"`
+	ChallengeClass uint8 `json:"challenge_class"`
 
 	// TemperatureBucket indicates abuse context at issuance (0-3).
-	TemperatureBucket uint8 `json:"temperature_bucket,omitempty"`
+	TemperatureBucket uint8 `json:"temperature_bucket"`
 
 	// ErrorCodes lists any issues encountered.
 	ErrorCodes []string `json:"error_codes,omitempty"`
